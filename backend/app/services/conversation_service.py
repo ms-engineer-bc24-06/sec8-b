@@ -1,8 +1,18 @@
+from fastapi import HTTPException, Depends
 from sqlalchemy.orm import Session # sqlalchemy.ormのsessionクラス: DB操作用
 from app.models import ConversationHistory
 from datetime import datetime, timezone
 from app.logging_config import logger
+from app.database import SessionLocal, init_db
 
+init_db
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # 会話を保存する
 def save_conversation_history(db: Session, user_id: str, user_message: str, bot_response: str):
@@ -30,6 +40,15 @@ def save_conversation_history(db: Session, user_id: str, user_message: str, bot_
 def get_conversation_history(db: Session, user_id: str):
     logger.debug("🚥get_conversation_historyが呼び出されました")
     return db.query(ConversationHistory).filter(ConversationHistory.user_id == user_id).all()
+
+async def read_conversation(user_id: str, db: Session = Depends(get_db)):
+    logger.debug(f"🚥read_conversationが呼び出されました")
+    conversation = get_conversation_history(db, user_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    logger.debug("🚥正常にread_conversationの処理を終えそうです")
+    return conversation
+
 
 # NOTE: 関数の解説
     # 関数save_conversation_history

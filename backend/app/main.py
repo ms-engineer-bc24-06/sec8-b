@@ -138,7 +138,7 @@ def handle_message(event: MessageEvent):
             if info_type in ["副作用", "使い方"]:
                 logger.debug(f"💊薬剤名: {drug_name}")
                 logger.debug(f"💊知りたいこと: {info_type}")
-                bot_response = get_drug_info(drug_name, info_type, user_id,  "https://www.pmda.go.jp/PmdaSearch/iyakuSearch/GeneralList?keyword=" + drug_name)
+                bot_response = get_drug_info(drug_name, info_type,  "https://www.pmda.go.jp/PmdaSearch/iyakuSearch/GeneralList?keyword=" + drug_name)
                 line_bot_api.reply_message(
                     event.reply_token,
                     TextSendMessage(text=bot_response)
@@ -194,6 +194,7 @@ def handle_location(event):
                 logger.debug(f"📍 位置情報: {location}")
                 try:
                     # results = find_nearby_medical_facilities(location, user_department, user_id)
+                    # 関数名を変えています: medical_facilities.py参照
                     results = get_nearby_hospital(location, user_department, user_id)
                     if results:
                         # bot_response = "お近くの医療機関はこちらです：\n\n" + "\n\n".join(
