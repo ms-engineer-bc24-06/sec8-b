@@ -54,6 +54,8 @@ def find_nearby_medical_facilities(location, department, radius=10000):
     logger.info(f"Returning {len(results)} results")
     return results
 
+# くーみんさん実装してくれたいた処理にエラーハンドリングの処理を加えて使用 @services/get_user_conversation.py
+
 # ユーザーの会話履歴を取得する関数定義
 # def get_user_conversation_history(user_id):     #REVIEW:以下変わる可能性あり
 #     db: Session = SessionLocal()
@@ -112,6 +114,7 @@ def test_logging():
 if __name__ == "__main__":
     test_logging()
 
+# 取得した会話履歴を文字列に直す
 def conversation_history_compile(user_id):
     pre_conversation_history = get_user_conversation_history(user_id)
 
