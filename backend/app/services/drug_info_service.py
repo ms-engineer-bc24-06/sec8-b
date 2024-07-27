@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal, init_db
 from app.models import ConversationHistory
 import asyncio
+from .get_user_conversation import get_user_conversation_history
 
 # ロガーの設定
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -51,7 +52,7 @@ def generate_prompt(drug_name: str, info_type: str, pmda_url: str) -> str:
 #                     logger.error(f"🙅会話履歴の取得に失敗しました: {response.status} - {await response.text()}")
 #     except Exception as e:
 #         logger.error(f"❌ エラー発生: {e}")
-from get_user_conversation import get_user_conversation_history
+
 # 会話履歴を基にプロンプトを生成する関数
 def generate_prompt_with_history(drug_name: str, info_type: str, pmda_url: str, user_id: str) -> str:
 

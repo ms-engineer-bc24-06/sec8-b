@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from openai import OpenAI
 from app.database import SessionLocal
 from app.models import ConversationHistory
+from .get_user_conversation import get_user_conversation_history
 
 # .env ファイルから環境変数を読み込む
 load_dotenv()
@@ -53,6 +54,13 @@ def find_nearby_medical_facilities(location, department, radius=10000):
     logger.info(f"Returning {len(results)} results")
     return results
 
+# ユーザーの会話履歴を取得する関数定義
+# def get_user_conversation_history(user_id):     #REVIEW:以下変わる可能性あり
+#     db: Session = SessionLocal()
+#     history = db.query(ConversationHistory).filter(ConversationHistory.user_id == user_id).all()
+#     db.close()
+#     return history
+
 # OpenAIを使用して応答を生成する関数定義
 def generate_response(context):
     response = client.chat.completions.create(
@@ -60,8 +68,8 @@ def generate_response(context):
         messages=[
             {"role": "system", "content": 
                 # くーみんさんへ: 勝手にプロンプトいじって試していました
-                "あなたは、受診する医療機関に迷っている人に対して適切な提案をすることに長けた人です。今に示す提案する医療機関の候補一覧と、会話相手とのこれまでの会話履歴を参考に、今この人にもっとも適した医療機関を提案する文章を生成してください。なお、提案する文章には必ず「医療機関名」「今営業中かどうか」「電話番号」「ホームページURL（もしもURLがない場合には割愛OK）」「住所」を含めるようにしてください。それでは、よろしくお願いします。"},
-            {"role": "user", "content": f"{context}\n\n応答:"}
+                "あなたは、受診する医療機関に迷っている人に対して適切な提案をすることに長けた人です。"},
+            {"role": "user", "content": f"今に示す提案する医療機関の候補一覧と、会話相手とのこれまでの会話履歴を参考に、今この人にもっとも適した医療機関を提案する文章を生成してください。医療機関を選定する際にはできるだけ、身近な開業医を提案してほしいですが、もしも専門の開業医がない場合には入院施設があるような病院でも可とします。なお、提案する文章には必ず「医療機関名」「今営業中かどうか」「電話番号」「ホームページURL（もしもURLがない場合には割愛OK）」「住所」を含めるようにしてください。それでは、よろしくお願いします。:{context}"}
         ],
         max_tokens=500,
         temperature=0.5,
@@ -69,21 +77,14 @@ def generate_response(context):
     )
     return response.choices[0].message.content.strip()#client.chat.completions.create()メソッドの結果
 
-# ユーザーの会話履歴を取得する関数定義
-def get_user_conversation_history(user_id):     #REVIEW:以下変わる可能性あり
-    db: Session = SessionLocal()
-    history = db.query(ConversationHistory).filter(ConversationHistory.user_id == user_id).all()
-    db.close()
-    return history
-
 # 会話履歴を考慮した応答生成関数定義
-def generate_response_with_history(user_id, context):  #REVIEW:以下変わる可能性あり
-    history = get_user_conversation_history(user_id)
-    history_text = "\n".join([f"{h.timestamp}: {h.message}" for h in history])
+# def generate_response_with_history(user_id, context):  #REVIEW:以下変わる可能性あり
+#     history = get_user_conversation_history(user_id)
+#     history_text = "\n".join([f"{h.timestamp}: {h.message}" for h in history])
     
-    combined_context = f"過去の会話履歴:\n{history_text}\n\n現在のコンテキスト:\n{context}"
+#     combined_context = f"過去の会話履歴:\n{history_text}\n\n現在のコンテキスト:\n{context}"
     
-    return generate_response(combined_context)
+#     return generate_response(combined_context)
 
 # ログをテストする関数
 def test_logging():
@@ -111,58 +112,31 @@ def test_logging():
 if __name__ == "__main__":
     test_logging()
 
+def conversation_history_compile(user_id):
+    pre_conversation_history = get_user_conversation_history(user_id)
 
-import httpx
-from fastapi import Depends, HTTPException
-from .conversation_service import get_conversation_history
-
-from app.database import SessionLocal, init_db
-init_db
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-async def get_user_history(user_id: str):
-    url = f"http://localhost:8000/api/conversation/{user_id}"
-
-    async with httpx.AsyncClient() as client:
-        api_response = await client.get(url)
-
-    if api_response.status_code == 200:
-        conversation_history = api_response.json
+    # 会話履歴を文字列に変換
+    if not pre_conversation_history:
+        conversation_history = "過去の会話履歴はありません。"
     else:
-        conversation_history = None
+        conversation_history = '\n'.join(
+            f"user:{conv.user_message}, bot:{conv.bot_response}" for conv in pre_conversation_history
+        )
     
-    logger.debug(f"💬取得した会話履歴: {conversation_history}")
     return conversation_history
 
-async def read_conversation(user_id: str, db: Session = Depends(get_db)):
-    logger.debug(f"🚥read_conversationが呼び出されました")
-    conversation = get_conversation_history(db, user_id)
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    logger.debug("🚥正常にread_conversationの処理を終えそうです")
-    return conversation
-
-
-def get_nearby_hospital(location, department, user_id, db = Depends(get_db)):
-    logger.debug("get_nearby hospitalが呼び出されました")
+# main.pyで呼び出す
+def get_nearby_hospital(location, department, user_id):
+    logger.info("get_nearby hospitalが呼び出されました")
     # googlemap検索結果: 必要な引数はlocation, department
     gmap_result = find_nearby_medical_facilities(location, department)
-    logger.debug("検索結果は出てきた")
-
-    # loop = asyncio.get_event_loop()
-    # conversation_history = loop.run_until_complete(read_conversation(user_id, db))
-    # logger.debug(f"💬取得した会話履歴: {conversation_history}")
-    conversation_history = "これまでよく通っていたのは釧路赤十字病院でした。だけど、担当の先生がいなくなてしまって他の病院を検討しています。"
-    logger.debug(conversation_history)
+    logger.info("検索結果は出てきた")
+    
+    conversation_history = conversation_history_compile(user_id)
+    logger.info(conversation_history)
 
     # LLMにpromptを投げて応答生成する: 必要な引数= context = gmap検索結果+会話履歴
     context = f"提案する医療機関の候補一覧: {gmap_result}, このユーザーとの過去の会話履歴: {conversation_history}"
-    logger.debug(f"💡 LLMに渡したcontext: {context}")
+    logger.info(f"💡 LLMに渡したcontext: {context}")
     bot_response = generate_response(context)
     return bot_response
